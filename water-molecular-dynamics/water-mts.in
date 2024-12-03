@@ -1,0 +1,82 @@
+# ------------------
+# System Setup
+# ------------------
+
+units real
+atom_style full
+
+# Read initial data
+read_data water.data
+
+# Label atoms for easier reference
+labelmap atom 1 H
+labelmap atom 2 O
+
+# ------------------
+# Topology
+# ------------------
+
+# Pair interactions
+pair_style hybrid/overlay &
+    lj/cut 9.0 &
+    metatensor model.pt
+
+pair_coeff H O lj/cut 0.0    1.0
+pair_coeff H H lj/cut 0.0    1.0
+pair_coeff O O lj/cut 0.1553 3.166
+pair_coeff * * metatensor 1 8
+
+# Bond interactions
+bond_style harmonic
+bond_coeff 1 450.0 1.0
+
+# Angle interactions
+angle_style harmonic
+angle_coeff 1 55.0 109.47
+
+# Fixes (Constraints)
+fix rigid all shake 0.0001 10 10000 b 1 a 1
+
+# ------------------
+# Simulation Parameters
+# ------------------
+
+# Timestep (fs)
+timestep 2.0
+
+# Temperature (K)
+variable temp equal 300.0
+
+# Pressure (atmosphere)
+variable press equal 1.0
+
+# Initial velocities
+velocity all create ${temp} 4928459 rot yes dist gaussian
+
+# NpT:
+# Nosé-Hoover Barostate
+fix integrate all nph iso ${press} ${press} 1000.0
+
+# CSVR Thermostate
+fix 1 all temp/csvr ${temp} ${temp} 100.0 54324
+
+# ------------------
+# Output Settings
+# ------------------
+
+# Thermodynamic output
+thermo_style custom step temp press vol pe ke etotal
+thermo 1000
+
+# Output trajectory
+dump 1 all xtc 200 water-mts.xtc
+
+# ------------------
+# Run Simulation
+# ------------------
+
+run 1000000 upto
+
+# Save final state
+write_data water_restart.data pair ij
+write_restart water.restart
