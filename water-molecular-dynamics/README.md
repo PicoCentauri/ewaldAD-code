@@ -1,7 +1,9 @@
 # Running Molecular Dynamics of Water
 
 This folder contains the following files required to run an NpT simulation of 256 rigid
-SPC/E molecules using [LAMMPS](https://www.lammps.org):
+SPC/E molecules using [LAMMPS](https://www.lammps.org).
+
+Files:
 
 - **[model.pt](model.pt)**: The trained machine learning model used for the molecular
   dynamics simulation with `torch-pme` and Metatensor.
