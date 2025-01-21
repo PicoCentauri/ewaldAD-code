@@ -1,0 +1,53 @@
+neighborlist_cutoff: &neighborlist_cutoff 3
+
+datamodule:
+  train_frames_path: "example.xyz"
+  val_frames_path: "example.xyz"
+    #test_frames_path: "debug.xyz"
+  batch_size: 4
+  neighborlist_cutoff_radius: *neighborlist_cutoff
+  target_properties: ["energies"] # ["energies", "forces"]
+  shuffle: true
+
+litmodel:
+  restart: false #"best_model.pl.ckpt"
+  scheduler: true
+  energies_weight: 1.0
+  forces_weight: 1.0
+  charges_weight: 0.0
+  lr: 1e-5
+  weight_decay: 1e-5
+  predict_forces: false
+
+model:
+  long_range: true
+  hidden_sizes_ps: [256,256,256]
+  output_size: 1
+  cutoff: *neighborlist_cutoff
+  max_radial: 5
+  max_angular: 4
+  radial_basis_type: "LaplacianEigenstates"
+  lode_prefactor: 14.
+  lode_charge_channels: 1
+  lode_atomic_smearing: 1.
+  lode_lr_wavelength: 0.5
+  lode_subtract_interior: true
+
+trainer:
+  max_epochs: 200
+  accelerator: "gpu"
+  check_val_every_n_epoch: 10
+  checkpoint_callback:
+    monitor: "val_energies_rmse"
+    filename: "best_model"
+    save_top_k: 1
+    mode: "min"
+
+logging:
+  project: "example"
+  name: "example"
+  save_dir: "./logs"
+  log_model: true
+
+
+
