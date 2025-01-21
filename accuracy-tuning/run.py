@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import vesin.torch
 from torchpme import EwaldCalculator, CoulombPotential, PMECalculator, P3MCalculator
-from torchpme.utils.tuning.grid_search import grid_search
+from torchpme.tuning import tune_ewald, tune_pme, tune_p3m
 import pickle
 import math
 
@@ -26,15 +26,22 @@ def compute_error(
         atoms.get_initial_charges(), dtype=dtype, device=device
     ).unsqueeze(1)
     cell = torch.tensor(atoms.cell.array, dtype=dtype, device=device)
+    cutoff = 4.4
 
-    smearing, params, cutoff = grid_search(
-        method, charges, cell, positions, cutoff=4.4, accuracy=accuracy
-    )
     if method == "ewald":
+        smearing, params = tune_ewald(
+            charges=charges, cell=cell, positions=positions, cutoff=cutoff
+        )
         calculator = EwaldCalculator(CoulombPotential(smearing), **params)
     elif method == "pme":
+        smearing, params = tune_pme(
+            charges=charges, cell=cell, positions=positions, cutoff=cutoff
+        )
         calculator = PMECalculator(CoulombPotential(smearing), **params)
     elif method == "p3m":
+        smearing, params = tune_p3m(
+            charges=charges, cell=cell, positions=positions, cutoff=cutoff
+        )
         calculator = P3MCalculator(CoulombPotential(smearing), **params)
     else:
         raise ValueError(f"Invalid method {method}. Choose ewald or pme.")
@@ -108,7 +115,7 @@ def compute(
             cell=cell,
         )
 
-        rep = [16, 16, 16]
+        rep = [8, 8, 8]
         atoms = atoms_unitcell.repeat(rep)
 
         results[crystal_name] = {}

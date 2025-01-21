@@ -14,5 +14,5 @@ Files:
   the tuning results. One for each `method` (*Ewald*, *PME*, *P3M*) and `dtype` (*32bit*
   and *64bit*).
 
-The tuning was performed with `torch-pme` commit
-`fac5b1e7a11a50ebcbadeae6c658f2034c1edae3`, `torch==2.4.1`, and CUDA 12.4.1, on a H100.
+The tuning was performed with `torch-pme` version 0.2, `torch==2.4.1`, and CUDA 12.4.1,
+on a H100.
