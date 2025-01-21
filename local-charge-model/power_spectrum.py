@@ -4,6 +4,7 @@ import torch
 from spex.spherical_expansion import SphericalExpansion
 from atomistic_dataset import AtomicSystem
 
+
 class PowerSpectrumFeatures(torch.nn.Module):
     def __init__(
         self,
@@ -34,7 +35,9 @@ class PowerSpectrumFeatures(torch.nn.Module):
         )
         self.ps_calculator = PowerSpectrum(max_angular)
 
-    def forward(self, x: List[AtomicSystem], distance_vectors: List[torch.Tensor]) -> List[torch.Tensor]:
+    def forward(
+        self, x: List[AtomicSystem], distance_vectors: List[torch.Tensor]
+    ) -> List[torch.Tensor]:
         out = []
         for system, distance_vector in zip(x, distance_vectors):
             spex = self.spex_calculator(
@@ -65,7 +68,7 @@ class PowerSpectrum(torch.nn.Module):
     def forward(self, spex: List[torch.Tensor]) -> torch.Tensor:
         ps_values_ai = []
         for l in range(self.l_max + 1):
-            cg = (-1) ** l * (2 * l + 1) ** (-0.5) 
+            cg = (-1) ** l * (2 * l + 1) ** (-0.5)
             c_ai_l = spex[l]
             ps_ai_l = cg * torch.einsum("imaq, imbe -> iabqe", c_ai_l, c_ai_l)
             ps_values_ai.append(ps_ai_l)

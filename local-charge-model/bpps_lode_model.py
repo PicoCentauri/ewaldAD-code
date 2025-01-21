@@ -39,21 +39,24 @@ class LRModel(torch.nn.Module):
         super().__init__()
         exclusion_radius = config.cutoff_radius if config.subtract_interior else None
         potentials_list = CombinedPotential(
-            potentials = [
-            InversePowerLawPotential(
-                exponent=1,
-                smearing=config.atomic_smearing, 
-                exclusion_radius=exclusion_radius,),
-            InversePowerLawPotential(
-                exponent=3,
-                smearing=config.atomic_smearing, 
-                exclusion_radius=exclusion_radius,),
-            InversePowerLawPotential(
-                exponent=6,
-                smearing=config.atomic_smearing, 
-                exclusion_radius=exclusion_radius,),
-        ],
-            initial_weights=torch.tensor([1/3, 1/3, 1/3]),
+            potentials=[
+                InversePowerLawPotential(
+                    exponent=1,
+                    smearing=config.atomic_smearing,
+                    exclusion_radius=exclusion_radius,
+                ),
+                InversePowerLawPotential(
+                    exponent=3,
+                    smearing=config.atomic_smearing,
+                    exclusion_radius=exclusion_radius,
+                ),
+                InversePowerLawPotential(
+                    exponent=6,
+                    smearing=config.atomic_smearing,
+                    exclusion_radius=exclusion_radius,
+                ),
+            ],
+            initial_weights=torch.tensor([1 / 3, 1 / 3, 1 / 3]),
             learnable_weights=True,
             smearing=config.atomic_smearing,
             exclusion_radius=exclusion_radius,
@@ -62,15 +65,16 @@ class LRModel(torch.nn.Module):
             potential=potentials_list,
             full_neighbor_list=config.full_neighbor_list,
             lr_wavelength=config.lr_wavelength,
-            prefactor=config.prefactor,    
+            prefactor=config.prefactor,
         )
 
     def forward(
-        self, systems: List[AtomicSystem], charges: List[torch.Tensor], distance_vectors: List[torch.Tensor]
+        self,
+        systems: List[AtomicSystem],
+        charges: List[torch.Tensor],
+        distance_vectors: List[torch.Tensor],
     ) -> List[torch.Tensor]:
-        positions, cells, neighbor_indices = (
-            self.extract_atomic_properties(systems)
-        )
+        positions, cells, neighbor_indices = self.extract_atomic_properties(systems)
         potentials = []
         for position, charge, cell, neighbor_index, distance_vector in zip(
             positions, charges, cells, neighbor_indices, distance_vectors
@@ -80,7 +84,7 @@ class LRModel(torch.nn.Module):
                 charges=charge,
                 cell=cell,
                 neighbor_indices=neighbor_index,
-                neighbor_distances=distance_vector.norm(dim=-1)
+                neighbor_distances=distance_vector.norm(dim=-1),
             )
             potentials.append(potential * charge)
 
@@ -94,7 +98,9 @@ class LRModel(torch.nn.Module):
     ]:
         positions = [system.positions for system in systems]
         cells = [system.cell for system in systems]
-        neighbor_indices = [system.neighbor_list["edge_indices"].T for system in systems]
+        neighbor_indices = [
+            system.neighbor_list["edge_indices"].T for system in systems
+        ]
         return positions, cells, neighbor_indices
 
 
@@ -126,7 +132,9 @@ class SRModel(torch.nn.Module):
         )
         self.short_range_energy_map = torch.nn.Linear(config.hidden_sizes[-1], 1)
         if self.long_range:
-            self.charges_map = torch.nn.Linear(config.hidden_sizes[-1], config.charge_channels)
+            self.charges_map = torch.nn.Linear(
+                config.hidden_sizes[-1], config.charge_channels
+            )
 
     def forward(
         self, systems: List[AtomicSystem], distance_vectors: List[torch.Tensor]
@@ -211,14 +219,16 @@ class BPPSLodeModel(torch.nn.Module):
             else None
         )
 
-    def forward(self, x: List[AtomicSystem]) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]]]:
+    def forward(
+        self, x: List[AtomicSystem]
+    ) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]]]:
         distance_vectors = self._extract_distance_vectors(x)
         if self.long_range:
             features_ps, charges = self.sr_model(x, distance_vectors)
             features_mp = self.lr_model(x, charges, distance_vectors)
             features_energies = [ps + mp for ps, mp in zip(features_ps, features_mp)]
         else:
-            features_energies, charges= self.sr_model(x, distance_vectors)
+            features_energies, charges = self.sr_model(x, distance_vectors)
         return torch.stack([f.sum() for f in features_energies]).view(-1, 1), charges
 
     def _extract_distance_vectors(self, data: List[AtomicSystem]) -> List[torch.Tensor]:

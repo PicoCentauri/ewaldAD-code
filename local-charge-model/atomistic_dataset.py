@@ -69,10 +69,8 @@ class AtomisticDataset(torch.utils.data.Dataset):
             )
             if self.cutoff_radius is not None:
                 data.neighbor_list = self._get_neighbor_list(
-                    points=data.positions,
-                    box=data.cell,
-                    periodic=data.pbc
-                    )
+                    points=data.positions, box=data.cell, periodic=data.pbc
+                )
             dataset.append(data)
         return dataset
 
@@ -89,7 +87,9 @@ class AtomisticDataset(torch.utils.data.Dataset):
 
     def _get_neighbor_list(self, points, box, periodic) -> Dict[str, torch.Tensor]:
         nl = vesin.torch.NeighborList(cutoff=self.cutoff_radius, full_list=True)
-        i, j, shifts = nl.compute(points=points, box=box, periodic=periodic, quantities="ijS")
+        i, j, shifts = nl.compute(
+            points=points, box=box, periodic=periodic, quantities="ijS"
+        )
         return {
             "edge_indices": torch.stack([i, j], dim=0),
             "edge_shifts": shifts,
@@ -216,6 +216,7 @@ class LitDataModule(pl.LightningDataModule):
         )
         weights = torch.linalg.lstsq(compositions, energies).solution
         return weights.T
+
 
 def get_compositions_from_numbers(
     systems: List[AtomisticDataset],

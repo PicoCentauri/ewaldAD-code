@@ -51,26 +51,53 @@ class LitModel(pl.LightningModule):
         )
         predicted_energies, predicted_charges = self.model(x)
         target_energies = (
-            torch.stack([system.target_properties["energies"] for system in x]).view(-1, 1)
+            torch.stack([system.target_properties["energies"] for system in x]).view(
+                -1, 1
+            )
             - self.compositions @ self.model.compositions_weights.T
         )
-        target_charges = torch.stack(
-            [torch.tensor(
-                sum(system.info[charge_key] for charge_key in system.info if charge_key.startswith("charge")),
-                device=self.device, dtype=self.dtype) for system in x]
-                ).view(-1, 1) if self.model.long_range else None
-        predicted_forces = torch.cat(
+        target_charges = (
+            torch.stack(
+                [
+                    torch.tensor(
+                        sum(
+                            system.info[charge_key]
+                            for charge_key in system.info
+                            if charge_key.startswith("charge")
+                        ),
+                        device=self.device,
+                        dtype=self.dtype,
+                    )
+                    for system in x
+                ]
+            ).view(-1, 1)
+            if self.model.long_range
+            else None
+        )
+        predicted_forces = (
+            torch.cat(
                 [
                     get_autograd_forces(predicted_energies, system.positions)[0]
                     for system in x
                 ]
-            ) if self.predict_forces else None
-        target_forces = torch.cat(
-                [system.target_properties["forces"] for system in x]
-            ) if self.predict_forces else None
+            )
+            if self.predict_forces
+            else None
+        )
+        target_forces = (
+            torch.cat([system.target_properties["forces"] for system in x])
+            if self.predict_forces
+            else None
+        )
 
-
-        return predicted_energies, predicted_forces, predicted_charges, target_energies, target_forces, target_charges
+        return (
+            predicted_energies,
+            predicted_forces,
+            predicted_charges,
+            target_energies,
+            target_forces,
+            target_charges,
+        )
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if self.predict_forces:
@@ -92,27 +119,29 @@ class LitModel(pl.LightningModule):
         ) = self.forward(batch)
 
         loss_fn = MSELoss()
-        #num_of_atoms = torch.tensor([[system.numbers.shape[0]] for system in batch], device=self.device, dtype=self.dtype)
+        # num_of_atoms = torch.tensor([[system.numbers.shape[0]] for system in batch], device=self.device, dtype=self.dtype)
         loss = self.energies_weight * loss_fn(predicted_energies, target_energies)
 
         if self.predict_forces:
             loss_force = loss_fn(predicted_forces, target_forces)
             loss += self.forces_weight * loss_force
         if self.model.long_range:
-            loss += self.charges_weight * loss_fn(torch.stack([charge.sum(dim=0) for charge in predicted_charges]), target_charges)
+            loss += self.charges_weight * loss_fn(
+                torch.stack([charge.sum(dim=0) for charge in predicted_charges]),
+                target_charges,
+            )
         self.log(
             "train_loss",
             loss.item(),
             on_step=True,
             prog_bar=True,
         )
-        lr = self.trainer.lr_scheduler_configs[0].scheduler.get_last_lr()[0] if self.scheduler else self.lr
-        self.log(
-            'learning_rate', 
-            lr, 
-            on_step=True, 
-            prog_bar=True
-                 )
+        lr = (
+            self.trainer.lr_scheduler_configs[0].scheduler.get_last_lr()[0]
+            if self.scheduler
+            else self.lr
+        )
+        self.log("learning_rate", lr, on_step=True, prog_bar=True)
 
         predicted_energies = predicted_energies.cpu().detach()
         self.predicted_energies_train.append(predicted_energies)
@@ -124,7 +153,11 @@ class LitModel(pl.LightningModule):
             target_forces = target_forces.cpu().detach()
             self.target_forces_train.append(target_forces)
         if self.model.long_range:
-            predicted_charges = torch.stack([charge.sum(dim=0) for charge in predicted_charges]).cpu().detach()
+            predicted_charges = (
+                torch.stack([charge.sum(dim=0) for charge in predicted_charges])
+                .cpu()
+                .detach()
+            )
             self.predicted_charges_train.append(predicted_charges)
             target_charges = target_charges.cpu().detach()
             self.target_charges_train.append(target_charges)
@@ -162,7 +195,7 @@ class LitModel(pl.LightningModule):
                 train_forces_rmse,
                 prog_bar=True,
             )
-        
+
         if self.model.long_range:
             train_charges_rmse = torch.sqrt(
                 loss_fn(preds_charges_train, targets_charges_train)
@@ -200,7 +233,11 @@ class LitModel(pl.LightningModule):
             self.predicted_forces_val.append(predicted_forces.cpu().detach())
             self.target_forces_val.append(target_forces.cpu().detach())
         if self.model.long_range:
-            self.predicted_charges_val.append(torch.stack([charge.sum(dim=0) for charge in predicted_charges]).cpu().detach())
+            self.predicted_charges_val.append(
+                torch.stack([charge.sum(dim=0) for charge in predicted_charges])
+                .cpu()
+                .detach()
+            )
             self.target_charges_val.append(target_charges.cpu().detach())
 
     def on_validation_epoch_end(self):
@@ -264,7 +301,9 @@ class LitModel(pl.LightningModule):
             if self.model.long_range:
                 torch.save(
                     preds_charges_val,
-                    os.path.join(self.logger.experiment.dir, "val_predicted_charges.pt"),
+                    os.path.join(
+                        self.logger.experiment.dir, "val_predicted_charges.pt"
+                    ),
                 )
                 torch.save(
                     targets_charges_val,
@@ -297,9 +336,13 @@ class LitModel(pl.LightningModule):
             self.predicted_forces_test.append(predicted_forces.cpu().detach())
             self.target_forces_test.append(target_forces.cpu().detach())
         if self.model.long_range:
-            self.predicted_charges_test.append(torch.stack([charge.sum(dim=0) for charge in predicted_charges]).cpu().detach())
+            self.predicted_charges_test.append(
+                torch.stack([charge.sum(dim=0) for charge in predicted_charges])
+                .cpu()
+                .detach()
+            )
             self.target_charges_test.append(target_charges.cpu().detach())
-    
+
     def on_test_epoch_end(self):
         preds_energy_test = torch.cat(self.predicted_energies_test)
         targets_energy_test = torch.cat(self.target_energies_test)
@@ -353,7 +396,9 @@ class LitModel(pl.LightningModule):
             if self.predict_forces:
                 torch.save(
                     preds_forces_test,
-                    os.path.join(self.logger.experiment.dir, "test_predicted_forces.pt"),
+                    os.path.join(
+                        self.logger.experiment.dir, "test_predicted_forces.pt"
+                    ),
                 )
                 torch.save(
                     targets_forces_test,
@@ -362,7 +407,9 @@ class LitModel(pl.LightningModule):
             if self.model.long_range:
                 torch.save(
                     preds_charges_test,
-                    os.path.join(self.logger.experiment.dir, "test_predicted_charges.pt"),
+                    os.path.join(
+                        self.logger.experiment.dir, "test_predicted_charges.pt"
+                    ),
                 )
                 torch.save(
                     targets_charges_test,
@@ -377,14 +424,16 @@ class LitModel(pl.LightningModule):
         )
         if self.scheduler:
             scheduler = torch.optim.lr_scheduler.OneCycleLR(
-                optimizer, max_lr=5e-4, total_steps=self.trainer.estimated_stepping_batches
+                optimizer,
+                max_lr=5e-4,
+                total_steps=self.trainer.estimated_stepping_batches,
             )
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
                     "interval": "step",
-                }
+                },
             }
         else:
             return optimizer

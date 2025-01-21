@@ -3,7 +3,9 @@ from typing import List
 import torch
 
 
-def get_autograd_forces(energies: torch.Tensor, positions: torch.Tensor) -> List[torch.Tensor]:
+def get_autograd_forces(
+    energies: torch.Tensor, positions: torch.Tensor
+) -> List[torch.Tensor]:
     gradients = torch.autograd.grad(
         energies,
         positions,
